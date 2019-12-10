@@ -1,0 +1,95 @@
+
+# apt update
+# apt upgrade
+# apt install nginx php-fpm php-mysql php-ssh2 php-gd mariadb-server
+# mysql_secure_installation
+
+В начале оставляем пустое поле (ENTER), отказываемся устанавливать root пароль (N), остальное (Y).
+После этого создаем нового admin пользователя:
+
+# mysql
+[MariaDB]> GRANT ALL ON *.* TO 'admin'@'localhost' IDENTIFIED BY 'password' WITH GRANT OPTION;
+[MariaDB]> FLUSH PRIVILEGES;
+[MariaDB]> exit
+
+# nano /etc/nginx/sites-available/default:
+
+server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        root /var/www/html;
+        index index.php index.html index.htm;
+
+        server_name _;
+
+        location / {
+                try_files $uri $uri/ /index.php?$args;
+        }
+
+        location ~ \.php$ {
+                include snippets/fastcgi-php.conf;
+                fastcgi_pass unix:/var/run/php/php7.0-fpm.sock;
+        }
+
+        location ^~ /application/ { deny all; }
+        location ^~ /application/public/ { allow all; }
+        location ^~ /engine/ { deny all; }
+}
+
+# service nginx reload
+# nano /etc/php/7.0/fpm/php.ini:
+
+cgi.fix_pathinfo=0
+
+# systemctl restart php7.0-fpm
+# apt install phpmyadmin
+
+В процессе установки PhpMyAdmin будет предложено выбрать веб-сервер, пропускаем TAB - ENTER.
+Далее выбираем «Да» для dbconfig-common. Потом вводим пароль от MySQL.
+
+# ln -s /usr/share/phpmyadmin /var/www/html
+
+Проверяем: http://server_domain_or_IP/phpmyadmin
+Теперь можно загрузить веб и сервер файлы.
+
+Далее идет установка серверной части:
+
+# apt install sudo screen python3 lib32stdc++6 cpulimit zip unzip proftpd
+# nano /etc/proftpd/proftpd.conf:
+
+DefaultRoot                     ~
+RequireValidShell               off
+
+# service proftpd restart
+# chmod 700 /home/cp
+# chmod 700 /home/cp/gameservers.py
+# groupadd gameservers
+# nano /etc/ssh/sshd_config:
+
+DenyGroups gameservers
+
+# service ssh restart
+
+Далее настраиваем CRON
+
+# crontab -e
+
+0 0 * * * wget https://webev.ru/main/cron/index?token=MYTOKEN
+*/5 * * * * wget https://webev.ru/main/cron/updateSystemLoad?token=MYTOKEN
+0 * * * * wget https://webev.ru/main/cron/updateStats?token=MYTOKEN
+
+Настраиваем квоты (ограничения диска)
+Источник: https://www.digitalocean.com/community/tutorials/how-to-set-filesystem-quotas-on-debian-9
+
+# apt-get install quota
+# nano /etc/fstab:
+
+UUID=06b2aae3-b525-4a4c-9549-0fc6045bd08e   / ext4    errors=remount-ro,usrquota,grpquota   0   1
+
+# mount -o remount /
+# quotacheck -ugm /
+
+# quotatool -u username -bl '100 Mb' /
+
+
